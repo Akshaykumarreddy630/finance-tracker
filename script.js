@@ -1,4 +1,4 @@
-/* FINANCE TRACKER - FULLY MOBILE-COMPATIBLE VERSION */
+/* FINANCE TRACKER - COMPLETE ENHANCED VERSION */
 const encryptionKey = "financeKey123";
 let transactions = [];
 let userProfile = {
@@ -10,9 +10,28 @@ let userProfile = {
     financialHealth: 0
 };
 
-// ==================== CORE INITIALIZATION ====================
+// DOM Ready
 document.addEventListener('DOMContentLoaded', function() {
-    // Load saved data
+    loadData();
+    applyTheme();
+    initApp();
+});
+
+function initApp() {
+    document.getElementById('txDate').valueAsDate = new Date();
+    updateUI();
+    document.getElementById('darkModeToggle').addEventListener('click', toggleDarkMode);
+    document.getElementById('analyzePatternsBtn').addEventListener('click', analyzeSpendingPatterns);
+    document.getElementById('optimizeSavingsBtn').addEventListener('click', optimizeSavings);
+    
+    if (!localStorage.getItem('firstRun')) {
+        showHelpTooltip();
+        localStorage.setItem('firstRun', 'completed');
+    }
+}
+
+/* DATA MANAGEMENT */
+function loadData() {
     try {
         const encryptedTx = localStorage.getItem("transactions");
         if (encryptedTx) {
@@ -31,119 +50,81 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error("Data load error:", e);
         showAlert("⚠️ Couldn't load saved data. Starting fresh.", 'error');
     }
-
-    // Initialize UI
-    document.getElementById('txDate').valueAsDate = new Date();
-    applyTheme();
-    setupMobileEvents();
-
-    // First-run experience
-    if (!localStorage.getItem('firstRun')) {
-        showHelpTooltip();
-        localStorage.setItem('firstRun', 'completed');
-    }
-
-    
-});
-
-function setupMobileEvents() {
-    // Handle start button
-    const startBtn = document.getElementById('startBtn') || document.querySelector('.start-btn');
-    if (startBtn) {
-        startBtn.addEventListener('click', enterApp);
-        startBtn.addEventListener('touchend', function(e) {
-            e.preventDefault();
-            enterApp();
-        }, {passive: false});
-    }
-
-    // Mobile-friendly dark mode toggle
-    document.getElementById('darkModeToggle').addEventListener('click', toggleDarkMode);
-    document.getElementById('darkModeToggle').addEventListener('touchend', function(e) {
-        e.preventDefault();
-        toggleDarkMode();
-    }, {passive: false});
-
-    // Analysis buttons
-    document.getElementById('analyzePatternsBtn').addEventListener('click', analyzeSpendingPatterns);
-    document.getElementById('optimizeSavingsBtn').addEventListener('click', optimizeSavings);
-
-    // Add transaction form
-    document.querySelector('#inputSection button[onclick="addTransaction()"]')
-        .addEventListener('touchend', function(e) {
-            e.preventDefault();
-            addTransaction();
-        }, {passive: false});
 }
 
-// ==================== MAIN APP FUNCTIONS ====================
-function enterApp() {
+function saveData() {
     try {
-        document.getElementById('home').style.display = 'none';
-        document.getElementById('mainApp').style.display = 'block';
-        showSection('dashboard');
-        localStorage.setItem('appInitialized', 'true');
-        updateUI();
-    } catch (error) {
-        console.error('App initialization failed:', error);
-        showAlert('Please reload the page. If problem persists, try another browser.', 'error');
+        const encrypted = btoa(xorEncrypt(JSON.stringify(transactions), encryptionKey));
+        localStorage.setItem("transactions", encrypted);
+        userProfile.financialHealth = calculateFinancialHealth().score;
+        localStorage.setItem("userProfile", JSON.stringify(userProfile));
+    } catch (e) {
+        console.error("Data save error:", e);
+        showAlert("⚠️ Failed to save data", 'error');
     }
 }
 
-function addTransaction() {
-    // Delay for mobile keyboards to close
-    setTimeout(() => {
-        const desc = document.getElementById("desc").value.trim();
-        const amount = parseFloat(document.getElementById("amount").value);
-        const type = document.getElementById("type").value;
-        let category = document.getElementById("category").value;
-        const txDate = document.getElementById("txDate").value;
-
-        // Validation
-        if (!desc) return showAlert("Description is required", 'error');
-        if (!amount || amount <= 0) return showAlert("Amount must be positive", 'error');
-        
-        // Auto-categorization
-        const rules = [
-            { pattern: /netflix|spotify|prime|disney|hbo|subscription/i, category: 'discretionary' },
-            { pattern: /rent|mortgage|electric|water|gas|internet|phone/i, category: 'essential' },
-            { pattern: /grocery|supermarket|food|dining|restaurant/i, category: 'essential' },
-            { pattern: /salary|paycheck|bonus|income/i, category: 'income' },
-            { pattern: /medical|doctor|hospital|pharmacy|clinic|healthcare/i, category: 'healthcare' }
-        ];
-        
-        for (const rule of rules) {
-            if (rule.pattern.test(desc)) {
-                category = rule.category;
-                break;
-            }
-        }
-
-        // Create transaction
-        const date = txDate ? new Date(txDate).getTime() : Date.now();
-        const transaction = {
-            id: date,
-            desc,
-            amount: type === "expense" ? -Math.abs(amount) : Math.abs(amount),
-            type,
-            category,
-            date: new Date(date).toISOString().split('T')[0]
-        };
-
-        transactions.push(transaction);
-        saveData();
-        
-        // Clear inputs
-        document.getElementById("desc").value = "";
-        document.getElementById("amount").value = "";
-        document.getElementById("txDate").value = "";
-        
-        updateUI();
-        checkForAnomalies();
-    }, 300);
+function xorEncrypt(text, key) {
+    return [...text].map((char, i) =>
+        String.fromCharCode(char.charCodeAt(0) ^ key.charCodeAt(i % key.length))
+    ).join('');
 }
 
-// ==================== FINANCIAL CALCULATIONS ====================
+function xorDecrypt(encrypted, key) {
+    return xorEncrypt(encrypted, key);
+}
+
+/* TRANSACTION HANDLING */
+function addTransaction() {
+    const desc = document.getElementById("desc").value.trim();
+    const amount = parseFloat(document.getElementById("amount").value);
+    const type = document.getElementById("type").value;
+    let category = document.getElementById("category").value;
+    const txDate = document.getElementById("txDate").value;
+
+    if (!desc) return showAlert("Description is required", 'error');
+    if (!amount || amount <= 0) return showAlert("Amount must be positive", 'error');
+    
+    category = autoCategorizeTransaction(desc, category);
+    
+    const date = txDate ? new Date(txDate).getTime() : Date.now();
+    
+    const transaction = {
+        id: date,
+        desc,
+        amount: type === "expense" ? -Math.abs(amount) : Math.abs(amount),
+        type,
+        category,
+        date: new Date(date).toISOString().split('T')[0]
+    };
+
+    transactions.push(transaction);
+    saveData();
+    
+    document.getElementById("desc").value = "";
+    document.getElementById("amount").value = "";
+    document.getElementById("txDate").value = "";
+    
+    updateUI();
+    checkForAnomalies();
+}
+
+function autoCategorizeTransaction(desc, currentCategory) {
+    const rules = [
+        { pattern: /netflix|spotify|prime|disney|hbo|subscription/i, category: 'discretionary' },
+        { pattern: /rent|mortgage|electric|water|gas|internet|phone/i, category: 'essential' },
+        { pattern: /grocery|supermarket|food|dining|restaurant/i, category: 'essential' },
+        { pattern: /salary|paycheck|bonus|income/i, category: 'income' },
+        { pattern: /medical|doctor|hospital|pharmacy|clinic|healthcare/i, category: 'healthcare' }
+    ];
+    
+    for (const rule of rules) {
+        if (rule.pattern.test(desc)) return rule.category;
+    }
+    return currentCategory;
+}
+
+/* FINANCIAL ANALYSIS */
 function calculateFinancialMetrics() {
     const result = {
         income: 0,
@@ -161,16 +142,12 @@ function calculateFinancialMetrics() {
             const amount = Math.abs(tx.amount);
             result.expenses += amount;
             
-            switch(tx.category) {
-                case 'essential': 
-                    result.essentialSpending += amount;
-                    break;
-                case 'discretionary':
-                    result.discretionarySpending += amount;
-                    break;
-                case 'healthcare':
-                    result.healthcareSpending += amount;
-                    break;
+            if (tx.category === 'essential') {
+                result.essentialSpending += amount;
+            } else if (tx.category === 'discretionary') {
+                result.discretionarySpending += amount;
+            } else if (tx.category === 'healthcare') {
+                result.healthcareSpending += amount;
             }
         }
     });
@@ -185,6 +162,7 @@ function calculateFinancialMetrics() {
     return result;
 }
 
+/* FINANCIAL HEALTH SYSTEM */
 function calculateFinancialHealth() {
     const metrics = calculateFinancialMetrics();
     const savingsScore = Math.min(100, metrics.savingsRate * 200);
@@ -193,8 +171,10 @@ function calculateFinancialHealth() {
         ? Math.min(100, (metrics.balance / userProfile.savingsGoal) * 100)
         : 50;
 
+    const healthScore = (savingsScore * 0.4) + (budgetScore * 0.4) + (goalScore * 0.2);
+    
     return {
-        score: Math.round((savingsScore * 0.4) + (budgetScore * 0.4) + (goalScore * 0.2)),
+        score: Math.round(healthScore),
         components: {
             savings: Math.round(savingsScore),
             budgeting: Math.round(budgetScore),
@@ -213,72 +193,14 @@ function calculateBudgetAdherenceScore(metrics) {
     return Math.max(0, (essentialScore * 0.6 + discretionaryScore * 0.4));
 }
 
-// ==================== UI UPDATES ====================
-function updateUI() {
-    showLoading(true);
-    setTimeout(() => {
-        updateDashboard();
-        updateTransactionLog();
-        updateSavingsGoal();
-        updateBadges();
-        updateCharts();
-        updateTips();
-        updateFinancialHealthDisplay();
-        showLoading(false);
-    }, 100);
-}
-
-function updateDashboard() {
-    const metrics = calculateFinancialMetrics();
-    const cards = [
-        { label: "Income", value: formatCurrency(metrics.income) },
-        { label: "Expenses", value: formatCurrency(metrics.expenses) },
-        { 
-            label: "Balance", 
-            value: formatCurrency(metrics.balance),
-            highlight: metrics.balance < 0 ? 'error' : metrics.balance >= userProfile.savingsGoal ? 'success' : '' 
-        },
-        { label: "Savings Rate", value: `${(metrics.savingsRate * 100).toFixed(1)}%` },
-        { 
-            label: "Essentials", 
-            value: `${formatCurrency(metrics.essentialSpending)} of ${formatCurrency(metrics.essentialBudget)}`,
-            highlight: metrics.essentialSpending > metrics.essentialBudget ? 'error' : '' 
-        },
-        { 
-            label: "Discretionary", 
-            value: `${formatCurrency(metrics.discretionarySpending)} of ${formatCurrency(metrics.discretionaryBudget)}`,
-            highlight: metrics.discretionarySpending > metrics.discretionaryBudget ? 'warning' : '' 
-        },
-        { label: "Healthcare", value: formatCurrency(metrics.healthcareSpending) }
-    ];
-
-    document.getElementById("summary").innerHTML = cards.map(card => `
-        <div class="card ${card.highlight || ''}">
-            <h4>${card.label}</h4>
-            <p>${card.value}</p>
-        </div>
-    `).join('');
-}
-
-function updateTransactionLog() {
-    const logList = document.getElementById("logList");
-    logList.innerHTML = transactions
-        .sort((a, b) => b.id - a.id)
-        .map(tx => `
-            <li class="tx-item ${tx.amount < 0 ? 'expense' : 'income'}">
-                <span class="tx-date">${new Date(tx.id).toLocaleDateString()}</span>
-                <span class="tx-desc">${tx.desc}</span>
-                <span class="tx-amount">
-                    ${tx.amount < 0 ? '-' : '+'}${formatCurrency(Math.abs(tx.amount))}
-                </span>
-                <span class="tx-category">${tx.category}</span>
-            </li>
-        `).join('');
-}
-
 function updateFinancialHealthDisplay() {
     const health = calculateFinancialHealth();
     const healthElem = document.getElementById('healthScore');
+    
+    if (!healthElem) {
+        console.error("Health score element not found!");
+        return;
+    }
     
     healthElem.innerHTML = `
         <div class="score-value">${health.score}</div>
@@ -307,7 +229,7 @@ function updateFinancialHealthDisplay() {
     `;
 }
 
-// ==================== ANALYTICS FEATURES ====================
+/* SPENDING PATTERN ANALYSIS */
 function analyzeSpendingPatterns() {
     showLoading(true);
     
@@ -316,6 +238,7 @@ function analyzeSpendingPatterns() {
             const metrics = calculateFinancialMetrics();
             const analysis = generateSpendingAnalysis(metrics);
             
+            // Create detailed report
             const report = document.createElement('div');
             report.className = 'analysis-report';
             report.innerHTML = `
@@ -339,6 +262,7 @@ function analyzeSpendingPatterns() {
                 </div>
             `;
             
+            // Show in modal
             showModal('Spending Analysis', report);
         } catch (error) {
             console.error("Analysis error:", error);
@@ -347,6 +271,61 @@ function analyzeSpendingPatterns() {
             showLoading(false);
         }
     }, 500);
+}
+
+function generateSpendingAnalysis(metrics) {
+    if (metrics.expenses === 0) {
+        return {
+            severity: 'low',
+            message: 'No spending data to analyze'
+        };
+    }
+
+    const essentialRatio = metrics.essentialSpending / metrics.expenses;
+    const discretionaryRatio = metrics.discretionarySpending / metrics.expenses;
+    
+    if (essentialRatio > 0.7) {
+        return {
+            severity: 'high',
+            message: `Your essential spending is high (${(essentialRatio*100).toFixed(1)}% of expenses). Consider reviewing fixed costs like rent, utilities, and groceries to see if you can reduce these necessary expenses.`
+        };
+    }
+    
+    if (discretionaryRatio > 0.5) {
+        return {
+            severity: 'medium',
+            message: `Your discretionary spending is significant (${(discretionaryRatio*100).toFixed(1)}% of expenses). Look for areas like dining out, entertainment, or subscriptions where you might cut back without significantly impacting your lifestyle.`
+        };
+    }
+    
+    return {
+        severity: 'low',
+        message: 'Your spending patterns are well-balanced between essential and discretionary categories. Keep up the good work!'
+    };
+}
+
+function generateCategoryBreakdown() {
+    const categories = {};
+    transactions.forEach(tx => {
+        if (tx.amount < 0) { // Only expenses
+            categories[tx.category] = (categories[tx.category] || 0) + Math.abs(tx.amount);
+        }
+    });
+    
+    const total = Object.values(categories).reduce((sum, val) => sum + val, 0);
+    if (total === 0) return '';
+    
+    return `
+        <h4>Category Breakdown</h4>
+        <ul class="category-list">
+            ${Object.entries(categories).map(([category, amount]) => `
+                <li>
+                    <span class="category-name">${category.charAt(0).toUpperCase() + category.slice(1)}</span>
+                    <span class="category-amount">${formatCurrency(amount)} (${((amount / total) * 100).toFixed(1)}%)</span>
+                </li>
+            `).join('')}
+        </ul>
+    `;
 }
 
 function optimizeSavings() {
@@ -397,7 +376,18 @@ function optimizeSavings() {
     }, 500);
 }
 
-// ==================== UTILITY FUNCTIONS ====================
+function calculatePotentialSavings(metrics) {
+    // Calculate potential savings as 15% of discretionary spending
+    return metrics.discretionarySpending * 0.15;
+}
+
+function findLargestExpenses(limit = 5) {
+    return transactions
+        .filter(tx => tx.amount < 0)
+        .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
+        .slice(0, limit);
+}
+
 function showModal(title, content) {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
@@ -426,273 +416,7 @@ function showModal(title, content) {
     document.body.appendChild(modal);
 }
 
-function formatCurrency(amount) {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: userProfile.currency || 'USD'
-    }).format(amount);
-}
-
-function showAlert(message, type = 'info') {
-    const alert = document.createElement('div');
-    alert.className = `alert alert-${type}`;
-    alert.textContent = message;
-    alert.setAttribute('role', 'alert');
-    
-    const dashboard = document.getElementById('dashboard');
-    if (dashboard) {
-        dashboard.prepend(alert);
-        setTimeout(() => alert.remove(), 5000);
-    }
-}
-
-function showLoading(show) {
-    const loader = document.getElementById('loader') || createLoader();
-    loader.style.display = show ? 'block' : 'none';
-}
-
-function createLoader() {
-    const loader = document.createElement('div');
-    loader.id = 'loader';
-    loader.innerHTML = '<div class="spinner"></div>';
-    document.body.appendChild(loader);
-    return loader;
-}
-
-function toggleDarkMode() {
-    const isDark = !document.body.classList.contains('dark');
-    localStorage.setItem('darkMode', isDark);
-    applyTheme();
-}
-
-function applyTheme() {
-    const isDark = localStorage.getItem('darkMode') === 'true';
-    document.body.classList.toggle('dark', isDark);
-    document.getElementById('darkModeToggle').textContent = isDark ? '☀️ Light Mode' : '🌙 Dark Mode';
-}
-
-// ==================== DATA MANAGEMENT ====================
-function saveData() {
-    try {
-        const encrypted = btoa(xorEncrypt(JSON.stringify(transactions), encryptionKey));
-        localStorage.setItem("transactions", encrypted);
-        userProfile.financialHealth = calculateFinancialHealth().score;
-        localStorage.setItem("userProfile", JSON.stringify(userProfile));
-    } catch (e) {
-        console.error("Data save error:", e);
-        showAlert("⚠️ Failed to save data", 'error');
-    }
-}
-
-function xorEncrypt(text, key) {
-    return [...text].map((char, i) =>
-        String.fromCharCode(char.charCodeAt(0) ^ key.charCodeAt(i % key.length))
-    ).join('');
-}
-
-function xorDecrypt(encrypted, key) {
-    return xorEncrypt(encrypted, key);
-}
-
-// ==================== HELPER FUNCTIONS ====================
-function generateSpendingAnalysis(metrics) {
-    if (metrics.expenses === 0) {
-        return {
-            severity: 'low',
-            message: 'No spending data to analyze'
-        };
-    }
-
-    const essentialRatio = metrics.essentialSpending / metrics.expenses;
-    const discretionaryRatio = metrics.discretionarySpending / metrics.expenses;
-    
-    if (essentialRatio > 0.7) {
-        return {
-            severity: 'high',
-            message: `Your essential spending is high (${(essentialRatio*100).toFixed(1)}% of expenses). Consider reviewing fixed costs like rent, utilities, and groceries to see if you can reduce these necessary expenses.`
-        };
-    }
-    
-    if (discretionaryRatio > 0.5) {
-        return {
-            severity: 'medium',
-            message: `Your discretionary spending is significant (${(discretionaryRatio*100).toFixed(1)}% of expenses). Look for areas like dining out, entertainment, or subscriptions where you might cut back without significantly impacting your lifestyle.`
-        };
-    }
-    
-    return {
-        severity: 'low',
-        message: 'Your spending patterns are well-balanced between essential and discretionary categories. Keep up the good work!'
-    };
-}
-
-function generateCategoryBreakdown() {
-    const categories = {};
-    transactions.forEach(tx => {
-        if (tx.amount < 0) {
-            categories[tx.category] = (categories[tx.category] || 0) + Math.abs(tx.amount);
-        }
-    });
-    
-    const total = Object.values(categories).reduce((sum, val) => sum + val, 0);
-    if (total === 0) return '';
-    
-    return `
-        <h4>Category Breakdown</h4>
-        <ul class="category-list">
-            ${Object.entries(categories).map(([category, amount]) => `
-                <li>
-                    <span class="category-name">${category.charAt(0).toUpperCase() + category.slice(1)}</span>
-                    <span class="category-amount">${formatCurrency(amount)} (${((amount / total) * 100).toFixed(1)}%)</span>
-                </li>
-            `).join('')}
-        </ul>
-    `;
-}
-
-function calculatePotentialSavings(metrics) {
-    return metrics.discretionarySpending * 0.15;
-}
-
-function findLargestExpenses(limit = 5) {
-    return transactions
-        .filter(tx => tx.amount < 0)
-        .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
-        .slice(0, limit);
-}
-
-function checkForAnomalies() {
-    const { discretionarySpending } = calculateFinancialMetrics();
-    const lastMonth = new Date();
-    lastMonth.setMonth(lastMonth.getMonth() - 1);
-
-    const recentSpending = transactions
-        .filter(tx => tx.amount < 0 && tx.category === 'discretionary' && new Date(tx.id) > lastMonth)
-        .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
-
-    const avgDaily = recentSpending / 30;
-    const currentWeek = transactions
-        .filter(tx => tx.amount < 0 && tx.category === 'discretionary' && new Date(tx.id) > new Date(Date.now() - 7 * 86400000))
-        .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
-
-    if (currentWeek > avgDaily * 7 * 1.5) {
-        showAlert(`⚠️ High spending this week: $${currentWeek.toFixed(2)} vs usual $${(avgDaily * 7).toFixed(2)}`, 'warning');
-    }
-}
-
-function showHelpTooltip() {
-    showAlert("💡 Tip: Add your first transaction to get started!", 'info');
-}
-
-function updateSavingsGoal() {
-    const { balance } = calculateFinancialMetrics();
-    const goal = userProfile.savingsGoal;
-    const status = document.getElementById("goalStatus");
-    
-    if (!goal) {
-        status.innerHTML = "<p>No savings goal set</p>";
-        return;
-    }
-
-    const progress = Math.min(100, (balance / goal) * 100);
-    status.innerHTML = `
-        <p>${balance >= goal ? '✅' : '❌'} ${formatCurrency(balance)} of ${formatCurrency(goal)}</p>
-        <div class="progress-container">
-            <div class="progress-bar" style="width: ${progress}%"></div>
-        </div>
-    `;
-}
-
-function updateBadges() {
-    const { balance } = calculateFinancialMetrics();
-    const badges = [];
-    
-    if (balance >= 1000) badges.push("💰 Savings Champion");
-    if (balance >= userProfile.savingsGoal && userProfile.savingsGoal > 0) badges.push("🎯 Goal Achiever");
-    
-    document.getElementById("badgeSection").innerHTML = badges.length
-        ? badges.map(b => `<div class="badge">${b}</div>`).join('')
-        : "<p>Complete milestones to earn badges</p>";
-}
-
-function updateCharts() {
-    const metrics = calculateFinancialMetrics();
-    const suggestedCtx = document.getElementById("suggestedChart");
-    const actualCtx = document.getElementById("actualChart");
-
-    if (!suggestedCtx || !actualCtx || !window.Chart) return;
-
-    // Suggested Budget Chart
-    if (window.suggestedChartInstance) {
-        window.suggestedChartInstance.destroy();
-    }
-    window.suggestedChartInstance = new Chart(suggestedCtx, {
-        type: 'pie',
-        data: {
-            labels: ['Essentials', 'Discretionary', 'Savings'],
-            datasets: [{
-                data: [
-                    metrics.essentialBudget,
-                    metrics.discretionaryBudget,
-                    metrics.savingsBudget
-                ],
-                backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56']
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom' },
-                title: { 
-                    display: true, 
-                    text: 'Suggested Budget',
-                    font: { size: 14 }
-                }
-            }
-        }
-    });
-
-    // Actual Spending Chart
-    if (window.actualChartInstance) {
-        window.actualChartInstance.destroy();
-    }
-    window.actualChartInstance = new Chart(actualCtx, {
-        type: 'pie',
-        data: {
-            labels: ['Essentials', 'Discretionary', 'Healthcare', 'Remaining'],
-            datasets: [{
-                data: [
-                    metrics.essentialSpending,
-                    metrics.discretionarySpending,
-                    metrics.healthcareSpending,
-                    Math.max(metrics.balance, 0)
-                ],
-                backgroundColor: ['#FF6384', '#36A2EB', '#AA66CC', '#4BC0C0']
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom' },
-                title: { 
-                    display: true, 
-                    text: 'Actual Spending',
-                    font: { size: 14 }
-                }
-            }
-        }
-    });
-}
-
-function updateTips() {
-    const advice = generateFinancialAdvice(calculateFinancialMetrics());
-    document.getElementById("tipsList").innerHTML = advice.map(a => `
-        <li class="advice-${a.severity}">${a.message}</li>
-    `).join('');
-}
-
+/* SMART FEATURES */
 function generateFinancialAdvice(metrics) {
     const advice = [];
     const { income, balance, savingsRate, essentialSpending, discretionarySpending, 
@@ -736,18 +460,253 @@ function generateFinancialAdvice(metrics) {
     }];
 }
 
-function showSection(sectionId) {
-    document.querySelectorAll('.content-section').forEach(section => {
-        section.style.display = section.id === sectionId ? 'block' : 'none';
+function checkForAnomalies() {
+    const { discretionarySpending } = calculateFinancialMetrics();
+    const lastMonth = new Date();
+    lastMonth.setMonth(lastMonth.getMonth() - 1);
+
+    const recentSpending = transactions
+        .filter(tx => tx.amount < 0 && tx.category === 'discretionary' && new Date(tx.id) > lastMonth)
+        .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+
+    const avgDaily = recentSpending / 30;
+    const currentWeek = transactions
+        .filter(tx => tx.amount < 0 && tx.category === 'discretionary' && new Date(tx.id) > new Date(Date.now() - 7 * 86400000))
+        .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+
+    if (currentWeek > avgDaily * 7 * 1.5) {
+        showAlert(`⚠️ High spending this week: $${currentWeek.toFixed(2)} vs usual $${(avgDaily * 7).toFixed(2)}`, 'warning');
+    }
+}
+
+/* UI UPDATES */
+function updateUI() {
+    showLoading(true);
+    setTimeout(() => {
+        updateDashboard();
+        updateTransactionLog();
+        updateSavingsGoal();
+        updateBadges();
+        updateCharts();
+        updateTips();
+        updateFinancialHealthDisplay();
+        showLoading(false);
+    }, 100);
+}
+
+function updateDashboard() {
+    const metrics = calculateFinancialMetrics();
+    const cards = [
+        { label: "Income", value: formatCurrency(metrics.income) },
+        { label: "Expenses", value: formatCurrency(metrics.expenses) },
+        { label: "Balance", value: formatCurrency(metrics.balance), 
+          highlight: metrics.balance < 0 ? 'error' : metrics.balance >= userProfile.savingsGoal ? 'success' : '' },
+        { label: "Savings Rate", value: `${(metrics.savingsRate * 100).toFixed(1)}%` },
+        { label: "Essentials", value: `${formatCurrency(metrics.essentialSpending)} of ${formatCurrency(metrics.essentialBudget)}`,
+          highlight: metrics.essentialSpending > metrics.essentialBudget ? 'error' : '' },
+        { label: "Discretionary", value: `${formatCurrency(metrics.discretionarySpending)} of ${formatCurrency(metrics.discretionaryBudget)}`,
+          highlight: metrics.discretionarySpending > metrics.discretionaryBudget ? 'warning' : '' },
+        { label: "Healthcare", value: formatCurrency(metrics.healthcareSpending) }
+    ];
+
+    const summary = document.getElementById("summary");
+    summary.innerHTML = cards.map(card => `
+        <div class="card ${card.highlight || ''}">
+            <h4>${card.label}</h4>
+            <p>${card.value}</p>
+        </div>
+    `).join('');
+}
+
+function updateTransactionLog() {
+    const logList = document.getElementById("logList");
+    logList.innerHTML = transactions
+        .sort((a, b) => b.id - a.id)
+        .map(tx => `
+            <li class="tx-item ${tx.amount < 0 ? 'expense' : 'income'}">
+                <span class="tx-date">${new Date(tx.id).toLocaleDateString()}</span>
+                <span class="tx-desc">${tx.desc}</span>
+                <span class="tx-amount">
+                    ${tx.amount < 0 ? '-' : '+'}${formatCurrency(Math.abs(tx.amount))}
+                </span>
+                <span class="tx-category">${tx.category}</span>
+            </li>
+        `).join('');
+}
+
+function updateSavingsGoal() {
+    const { balance } = calculateFinancialMetrics();
+    const goal = userProfile.savingsGoal;
+    const status = document.getElementById("goalStatus");
+    
+    if (!goal) {
+        status.innerHTML = "<p>No savings goal set</p>";
+        return;
+    }
+
+    const progress = Math.min(100, (balance / goal) * 100);
+    status.innerHTML = `
+        <p>${balance >= goal ? '✅' : '❌'} ${formatCurrency(balance)} of ${formatCurrency(goal)}</p>
+        <div class="progress-container">
+            <div class="progress-bar" style="width: ${progress}%"></div>
+        </div>
+    `;
+}
+
+function updateBadges() {
+    const { balance } = calculateFinancialMetrics();
+    const badges = [];
+    
+    if (balance >= 1000) badges.push("💰 Savings Champion");
+    if (balance >= userProfile.savingsGoal && userProfile.savingsGoal > 0) badges.push("🎯 Goal Achiever");
+    
+    document.getElementById("badgeSection").innerHTML = badges.length
+        ? badges.map(b => `<div class="badge">${b}</div>`).join('')
+        : "<p>Complete milestones to earn badges</p>";
+}
+
+function updateCharts() {
+    const metrics = calculateFinancialMetrics();
+    const suggestedCtx = document.getElementById("suggestedChart");
+    const actualCtx = document.getElementById("actualChart");
+
+    if (!suggestedCtx || !actualCtx || !window.Chart) return;
+
+    // Suggested Budget Chart
+    window.suggestedChartInstance?.destroy();
+    window.suggestedChartInstance = new Chart(suggestedCtx, {
+        type: 'pie',
+        data: {
+            labels: ['Essentials', 'Discretionary', 'Savings'],
+            datasets: [{
+                data: [
+                    metrics.essentialBudget,
+                    metrics.discretionaryBudget,
+                    metrics.savingsBudget
+                ],
+                backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56']
+            }]
+        },
+        options: {
+            responsive: false,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' },
+                title: { 
+                    display: true, 
+                    text: 'Suggested Budget',
+                    font: { size: 14 }
+                }
+            }
+        }
     });
 
+    // Actual Spending Chart
+    window.actualChartInstance?.destroy();
+    window.actualChartInstance = new Chart(actualCtx, {
+        type: 'pie',
+        data: {
+            labels: ['Essentials', 'Discretionary', 'Healthcare', 'Remaining'],
+            datasets: [{
+                data: [
+                    metrics.essentialSpending,
+                    metrics.discretionarySpending,
+                    metrics.healthcareSpending,
+                    Math.max(metrics.balance, 0)
+                ],
+                backgroundColor: ['#FF6384', '#36A2EB', '#AA66CC', '#4BC0C0']
+            }]
+        },
+        options: {
+            responsive: false,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' },
+                title: { 
+                    display: true, 
+                    text: 'Actual Spending',
+                    font: { size: 14 }
+                }
+            }
+        }
+    });
+}
+
+function updateTips() {
+    const advice = generateFinancialAdvice(calculateFinancialMetrics());
+    document.getElementById("tipsList").innerHTML = advice.map(a => `
+        <li class="advice-${a.severity}">${a.message}</li>
+    `).join('');
+}
+
+/* UTILITIES */
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: userProfile.currency || 'USD'
+    }).format(amount);
+}
+
+function showAlert(message, type = 'info') {
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type}`;
+    alert.textContent = message;
+    alert.setAttribute('role', 'alert');
+    
+    const dashboard = document.getElementById('dashboard');
+    if (dashboard) {
+        dashboard.prepend(alert);
+        setTimeout(() => alert.remove(), 5000);
+    }
+}
+
+function showLoading(show) {
+    const loader = document.getElementById('loader') || createLoader();
+    loader.style.display = show ? 'block' : 'none';
+}
+
+function createLoader() {
+    const loader = document.createElement('div');
+    loader.id = 'loader';
+    loader.innerHTML = '<div class="spinner"></div>';
+    document.body.appendChild(loader);
+    return loader;
+}
+
+function showHelpTooltip() {
+    showAlert("💡 Tip: Add your first transaction to get started!", 'info');
+}
+
+/* APP CONTROLS */
+function showSection(sectionId) {
+    document.querySelectorAll('.section').forEach(section => {
+        section.style.display = section.id === sectionId ? 'block' : 'none';
+    });
     document.getElementById('inputSection').style.display = 
         sectionId === 'dashboard' ? 'flex' : 'none';
-
+    
     if (sectionId === 'analysis') initializeDateAnalysis();
 }
 
+function enterApp() {
+    document.getElementById('home').style.display = 'none';
+    document.getElementById('mainApp').style.display = 'block';
+    showSection('dashboard');
+}
 
+function toggleDarkMode() {
+    const isDark = !document.body.classList.contains('dark');
+    localStorage.setItem('darkMode', isDark);
+    applyTheme();
+}
+
+function applyTheme() {
+    const isDark = localStorage.getItem('darkMode') === 'true';
+    document.body.classList.toggle('dark', isDark);
+    document.getElementById('darkModeToggle').textContent = isDark ? '☀️ Light Mode' : '🌙 Dark Mode';
+}
+
+/* DATE ANALYSIS */
 function initializeDateAnalysis() {
     const end = new Date();
     const start = new Date();
@@ -876,6 +835,7 @@ function downloadCSV(content, filename) {
     document.body.removeChild(link);
 }
 
+/* SETTINGS */
 function saveCustomBudgetRule() {
     const essentials = parseFloat(document.getElementById('customEssentials').value);
     const discretionary = parseFloat(document.getElementById('customDiscretionary').value);
