@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Advanced personal finance tracker with smart analytics">
+  <title>Smart Personal Finance Tracker</title>
+  <style>
+    /* Modal styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .modal {
+      background: var(--card);
+      border-radius: 10px;
+      padding: 20px;
+      max-width: 90%;
+      width: 600px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: var(--text);
+    }
+    /* Analysis specific styles */
+    .analysis-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+    .analysis-card {
+      background: rgba(255,255,255,0.1);
+      padding: 1rem;
+      border-radius: 8px;
+    }
+    .category-list {
+      list-style: none;
+      padding: 0;
+    }
+    .category-list li {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .category-name {
+      font-weight: bold;
+    }
+    .savings-suggestions ol {
+      padding-left: 1.5rem;
+    }
+    .largest-expenses ul {
+      list-style: none;
+      padding: 0;
+    }
+    .largest-expenses li {
+      padding: 0.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+    }
+    .expense-date {
+      color: #666;
+      font-size: 0.9rem;
+    }
+  </style>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
+</head>
+<body>
+
+  <!-- Home Screen -->
+  <section id="home" class="home-screen" aria-label="Welcome section">
+    <h1>💸 Smart Persosnal Finance Tracker</h1>
+    <p>AI-powered financial insights and goal tracking</p>
+    <button onclick="enterApp()" class="start-btn" aria-label="Enter application">Get Started</button>
+  </section>
+
+  <!-- Main App -->
+  <div id="mainApp" style="display: none;" aria-label="Finance application">
+    <nav class="top-nav" aria-label="Main navigation">
+      <ul>
+        <li><a href="#" onclick="showSection('dashboard')" aria-label="Dashboard"><span aria-hidden="true">📊</span> Dashboard</a></li>
+        <li><a href="#" onclick="showSection('badges')" aria-label="Badges"><span aria-hidden="true">🏆</span> Badges</a></li>
+        <li><a href="#" onclick="showSection('goal')" aria-label="Savings Goal"><span aria-hidden="true">🎯</span> Goals</a></li>
+        <li><a href="#" onclick="showSection('transactions')" aria-label="Transactions"><span aria-hidden="true">📒</span> Transactions</a></li>
+        <li><a href="#" onclick="showSection('insights')" aria-label="Insights"><span aria-hidden="true">📈</span> Insights</a></li>
+        <li><a href="#" onclick="showSection('analysis')" aria-label="Date Analysis"><span aria-hidden="true">🔍</span> Analysis</a></li>
+      </ul>
+    </nav>
+
+    <main class="container">
+      <!-- Input Section -->
+      <section class="input-section" id="inputSection" aria-label="Add transaction">
+        <input type="text" id="desc" placeholder="Description" aria-label="Transaction description">
+        <input type="number" id="amount" placeholder="Amount" aria-label="Transaction amount">
+        <input type="date" id="txDate" aria-label="Transaction date">
+        <select id="type" aria-label="Transaction type">
+          <option value="income">Income</option>
+          <option value="expense">Expense</option>
+        </select>
+        <select id="category" aria-label="Transaction category">
+          <option value="essential">Essential</option>
+          <option value="discretionary">Discretionary</option>
+          <option value="healthcare">Healthcare</option>
+        </select>
+        <button onclick="addTransaction()" aria-label="Add transaction">Add</button>
+        <button id="darkModeToggle" class="dark-btn" aria-label="Toggle dark mode">🌙 Dark Mode</button>
+      </section>
+
+      <!-- Dashboard -->
+      <section id="dashboard" class="section" aria-label="Financial dashboard">
+        <h2>📊 Financial Dashboard</h2>
+        
+        <!-- Health Dashboard -->
+        <div class="health-dashboard">
+          <div class="health-score" aria-label="Financial health score">
+            <h3>Financial Health</h3>
+            <div class="score-container" id="healthScore" aria-label="Health score visualization"></div>
+            <div id="healthBreakdown" aria-label="Health score breakdown"></div>
+          </div>
+          <div class="chart-container">
+            <canvas id="trendChart" aria-label="Income vs expenses trend chart"></canvas>
+          </div>
+        </div>
+
+        <div id="summary" class="dashboard-cards"></div>
+
+        <!-- Smart Tips -->
+        <article class="card" id="tipsCard" aria-label="Financial advice">
+          <h3>💡 Smart Advice</h3>
+          <ul id="tipsList"></ul>
+        </article>
+
+        <!-- Budget Rules -->
+        <article class="card" id="budgetRuleCard" aria-label="Budget settings">
+          <h3>⚙️ Budget Rules (%)</h3>
+          <label>Essentials: <input type="number" id="customEssentials" value="50" min="0" max="100" aria-label="Essentials percentage"></label>
+          <label>Discretionary: <input type="number" id="customDiscretionary" value="30" min="0" max="100" aria-label="Discretionary percentage"></label>
+          <label>Savings: <input type="number" id="customSavings" value="20" min="0" max="100" disabled aria-label="Savings percentage"></label>
+          <button onclick="saveCustomBudgetRule()" aria-label="Save budget rules">Save Rules</button>
+          <p id="budgetWarning" class="warning-text"></p>
+        </article>
+
+        <!-- Pattern Analysis -->
+        <article class="card" aria-label="Spending patterns">
+          <h3>🔄 Spending Patterns</h3>
+          <button id="analyzePatternsBtn" class="pattern-btn" aria-label="Analyze spending patterns">Analyze My Spending</button>
+          <button id="optimizeSavingsBtn" class="pattern-btn" aria-label="Optimize savings">Optimize Savings</button>
+        </article>
+      </section>
+
+      <!-- Badges -->
+      <section id="badges" class="section" style="display: none;" aria-label="Achievement badges">
+        <h2>🏆 Achievement Badges</h2>
+        <div id="badgeSection"></div>
+      </section>
+
+      <!-- Savings Goal -->
+      <section id="goal" class="section" style="display: none;" aria-label="Savings goals">
+        <h2>🎯 Savings Goals</h2>
+        <label for="goalAmount">Monthly Target:</label>
+        <input type="number" id="goalAmount" placeholder="e.g. 500" aria-label="Savings goal amount">
+        <button onclick="setSavingsGoal()" aria-label="Set savings goal">Set Goal</button>
+        <div id="goalStatus"></div>
+      </section>
+
+      <!-- Transactions -->
+      <section id="transactions" class="section" style="display: none;" aria-label="Transaction history">
+        <h2>📒 Transaction History</h2>
+        <ul id="logList"></ul>
+      </section>
+
+      <!-- Insights -->
+      <section id="insights" class="section" style="display: none;" aria-label="Spending insights">
+        <h2>📈 Spending Insights</h2>
+        <div class="chart-container">
+          <h3>Suggested Budget</h3>
+          <canvas id="suggestedChart" aria-label="Suggested budget chart"></canvas>
+        </div>
+        <div class="chart-container">
+          <h3>Actual Spending</h3>
+          <canvas id="actualChart" aria-label="Actual spending chart"></canvas>
+        </div>
+      </section>
+
+      <!-- Analysis -->
+      <section id="analysis" class="section" style="display: none;" aria-label="Advanced analysis">
+        <h2>🔍 Advanced Analysis</h2>
+        <div class="input-section">
+          <input type="date" id="startDate" aria-label="Start date">
+          <input type="date" id="endDate" aria-label="End date">
+          <button onclick="analyzeDateRange()" aria-label="Analyze date range">Analyze</button>
+          <button onclick="exportFilteredCSV()" class="export-btn" aria-label="Export to CSV">📥 Export CSV</button>
+        </div>
+        <div id="dateRangeResults"></div>
+      </section>
+
+      <!-- Reset Section -->
+      <div class="reset-section">
+        <button onclick="resetAllData()" class="reset-btn" aria-label="Reset all data">🔁 Reset All Data</button>
+      </div>
+    </main>
+  </div>
+
+  <!-- Loading Indicator -->
+  <div id="loader" style="display: none;" aria-live="polite">
+    <div class="spinner"></div>
+  </div>
+
+  <script src="script.js" defer></script>
+</body>
+</html>
