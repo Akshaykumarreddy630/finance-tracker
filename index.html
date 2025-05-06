@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smart Personal Finance Tracker</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f5f5f5;
+      color: #333;
+    }
+    .app-container {
+      min-height: 100vh;
+    }
+    #mainApp {
+      display: none;
+      flex-direction: column;
+    }
+    .chart-container {
+      width: 100%;
+      max-width: 400px;
+      height: 300px;
+      margin: 1rem auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Home Screen -->
+    <section id="home" class="home-screen">
+      <h1>💸 Smart Personal Finance Tracker</h1>
+      <p>AI-powered financial insights and goal tracking</p>
+      <button id="startBtn" class="start-btn">Get Started</button>
+    </section>
+
+    <!-- Main App -->
+    <div id="mainApp">
+      <!-- Navigation -->
+      <nav class="top-nav">
+        <ul class="nav-list">
+          <li><a href="#" onclick="showSection('dashboard')">📊 Dashboard</a></li>
+          <li><a href="#" onclick="showSection('badges')">🏆 Badges</a></li>
+          <li><a href="#" onclick="showSection('goal')">🎯 Goals</a></li>
+          <li><a href="#" onclick="showSection('transactions')">📒 Transactions</a></li>
+          <li><a href="#" onclick="showSection('insights')">📈 Insights</a></li>
+          <li><a href="#" onclick="showSection('analysis')">🔍 Analysis</a></li>
+        </ul>
+      </nav>
+
+      <!-- Input Section -->
+      <section class="input-section" id="inputSection">
+        <input type="text" id="desc" placeholder="Description" />
+        <input type="number" id="amount" placeholder="Amount" />
+        <input type="date" id="txDate" />
+        <select id="type">
+          <option value="income">Income</option>
+          <option value="expense">Expense</option>
+        </select>
+        <select id="category">
+          <option value="essential">Essential</option>
+          <option value="discretionary">Discretionary</option>
+          <option value="healthcare">Healthcare</option>
+        </select>
+        <button onclick="addTransaction()">Add Transaction</button>
+        <button id="darkModeToggle">🌙 Dark Mode</button>
+      </section>
+
+      <!-- Sections -->
+      <main class="main-content">
+        <section id="dashboard" class="content-section">
+          <h2>📊 Financial Dashboard</h2>
+          <div class="card">
+            <h3>Financial Health</h3>
+            <div class="health-dashboard">
+              <div class="health-score-card">
+                <div id="healthScore" class="score-container"></div>
+                <div id="healthBreakdown"></div>
+              </div>
+              <div class="chart-container">
+                <canvas id="trendChart"></canvas>
+              </div>
+            </div>
+          </div>          
+          <div id="summary" class="dashboard-grid"></div>
+          <div class="card">
+            <h3>💡 Smart Advice</h3>
+            <ul id="tipsList"></ul>
+          </div>
+          <div class="card">
+            <h3>⚙️ Budget Rules (%)</h3>
+            <label>Essentials: <input type="number" id="customEssentials" value="50" min="0" max="100"/></label>
+            <label>Discretionary: <input type="number" id="customDiscretionary" value="30" min="0" max="100"/></label>
+            <label>Savings: <input type="number" id="customSavings" value="20" disabled /></label>
+            <button onclick="saveCustomBudgetRule()">Save Rules</button>
+            <p id="budgetWarning" class="warning-text"></p>
+          </div>
+          <div class="card">
+            <h3>🔄 Spending Patterns</h3>
+            <button id="analyzePatternsBtn">Analyze My Spending</button>
+            <button id="optimizeSavingsBtn">Optimize Savings</button>
+          </div>
+        </section>
+
+        <section id="badges" class="content-section" style="display:none;">
+          <h2>🏆 Achievement Badges</h2>
+          <div id="badgeSection"></div>
+        </section>
+
+        <section id="goal" class="content-section" style="display:none;">
+          <h2>🎯 Savings Goals</h2>
+          <input type="number" id="goalAmount" placeholder="e.g. 500" />
+          <button onclick="setSavingsGoal()">Set Goal</button>
+          <div id="goalStatus"></div>
+        </section>
+
+        <section id="transactions" class="content-section" style="display:none;">
+          <h2>📒 Transaction History</h2>
+          <ul id="logList"></ul>
+        </section>
+
+        <section id="insights" class="content-section" style="display:none;">
+          <h2>📈 Spending Insights</h2>
+          <div class="chart-container">
+            <canvas id="suggestedChart"></canvas>
+          </div>
+          <div class="chart-container">
+            <canvas id="actualChart"></canvas>
+          </div>
+        </section>
+
+        <section id="analysis" class="content-section" style="display:none;">
+          <h2>🔍 Advanced Analysis</h2>
+          <label>From: <input type="date" id="startDate"></label>
+          <label>To: <input type="date" id="endDate"></label>
+          <button onclick="analyzeDateRange()">Analyze Period</button>
+          <button onclick="exportFilteredCSV()">📥 Export CSV</button>
+          <div id="dateRangeResults"></div>
+        </section>
+
+        <!-- Reset -->
+        <div class="reset-section">
+          <button onclick="resetAllData()" class="reset-btn">🔁 Reset All Data</button>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Loader -->
+  <div id="loader" class="loading-overlay" style="display:none">
+    <div class="spinner"></div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
