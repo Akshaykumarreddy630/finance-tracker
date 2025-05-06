@@ -611,3 +611,27 @@ h4 { font-size: 1.2rem; }
   color: #666;
   font-size: 0.9rem;
 }
+/* ✅ Make input fields cleaner on mobile */
+.input-section input,
+.input-section select,
+.input-section button {
+  padding: 8px 12px;
+  font-size: 1rem;
+  height: auto;
+  box-sizing: border-box;
+}
+
+@media (max-width: 600px) {
+  .input-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .input-section input,
+  .input-section select,
+  .input-section button {
+    width: 100%;
+    font-size: 1rem;
+  }
+}
