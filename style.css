@@ -696,3 +696,43 @@ h4 { font-size: 1.2rem; }
     height: auto;
   }
 }
+/* ✅ Normalize mobile inputs — especially on iOS */
+input,
+select,
+textarea,
+button {
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 6px;
+  height: 44px;
+  font-size: 16px;
+  line-height: normal;
+}
+
+@media (max-width: 600px) {
+  .input-section input,
+  .input-section select,
+  .input-section button {
+    height: 44px !important;
+    font-size: 16px !important;
+    padding: 8px 12px !important;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .health-dashboard {
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 1rem;
+    gap: 1rem;
+  }
+
+  .health-score-card {
+    margin-bottom: 0.5rem;
+  }
+
+  .chart-container {
+    max-width: 90%;
+    height: auto;
+  }
+}
